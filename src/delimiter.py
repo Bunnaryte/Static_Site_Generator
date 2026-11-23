@@ -1,5 +1,19 @@
 from textnode import TextType, TextNode
 import re
+from enum import Enum
+
+class DelimiterEnum(Enum):
+    BOLD = "**"
+    ITALIC = "_"
+    CODE = "`"
+
+class BlockType(Enum):
+    PARAGRAPH = "paragraph"
+    HEADING = "heading"
+    CODE = "code"
+    QUOTE = "quote"
+    UNORDERD = "unordered_list"
+    ORDERED = "ordered_list"
 
 def split_nodes_delimiter(old_nodes: list[TextNode], delimiter: str, text_type: TextType) -> list[TextNode]:
     result = []
@@ -82,3 +96,51 @@ def split_nodes_link(old_nodes: list[TextNode]) -> list[TextNode]:
            result.extend(split_nodes_link([TextNode(split_text[1], TextType.TEXT)]))
 
     return result
+
+
+def text_to_textnodes(text) -> list[TextNode]:
+    text_node = TextNode(text, TextType.TEXT)
+    result = [text_node]
+
+    result = split_nodes_delimiter(result, "**", TextType.BOLD)
+    result = split_nodes_delimiter(result, "`", TextType.CODE)
+    result = split_nodes_delimiter(result, "_", TextType.ITALIC)
+    result = split_nodes_image(result)
+    result = split_nodes_link(result)
+    return result
+
+def markdown_to_blocks(markdown) -> list[str]:
+    result = []
+    blocks = markdown.split("\n\n")
+    for block in blocks:
+        clean_block = block.strip()
+        if clean_block != "":
+            result.append(clean_block)
+
+    return result
+
+def block_to_block_type(block: str) -> BlockType:
+    lines = block.split("\n")
+
+    if block.startswith(("# ", "## ", "### ", "#### ", "##### ", "###### ")):
+        return BlockType.HEADING
+    if len(lines) > 1 and lines[0].startswith("```") and lines[-1].startswith("```"):
+        return BlockType.CODE
+    if block.startswith(">"):
+        for line in lines:
+            if not line.startswith(">"):
+                return BlockType.PARAGRAPH
+        return BlockType.QUOTE
+    if block.startswith("- "):
+        for line in lines:
+            if not line.startswith("- "):
+                return BlockType.PARAGRAPH
+        return BlockType.ULIST
+    if block.startswith("1. "):
+        i = 1
+        for line in lines:
+            if not line.startswith(f"{i}. "):
+                return BlockType.PARAGRAPH
+            i += 1
+        return BlockType.OLIST
+    return BlockType.PARAGRAPH
